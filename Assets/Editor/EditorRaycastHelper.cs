@@ -80,7 +80,7 @@ public static class EditorRaycastHelper
                 meshUnderCursor = skinnedMeshRenderer.sharedMesh;
 
             //当たったオブジェクトを取得する
-            hitObj = gameObjectUnderCursor as GameObject;
+            hitObj = (gameObjectUnderCursor == null) ? null : gameObjectUnderCursor;
 
             if (meshUnderCursor)
             {

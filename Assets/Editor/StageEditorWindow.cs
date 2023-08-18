@@ -10,7 +10,8 @@ using Unity.Burst.CompilerServices;
 using static UnityEditor.EditorGUILayout;
 using static UnityEditor.PlayerSettings;
 
-
+//起動時&コンパイル時にコンストラクタを呼び出す
+[InitializeOnLoad]
 public class StageEditorWindow : EditorWindow
 {
     /******************************************************************************
@@ -19,23 +20,13 @@ public class StageEditorWindow : EditorWindow
     * 
     *******************************************************************************/
 
-    /*-----------------------------------�N���X------------------------------------*
-    /*------------------------------------�萔------------------------------------*/
-    /*------------------------------------�ϐ�------------------------------------*/
+    /*-----------------------------------クラス------------------------------------*
+    /*------------------------------------定数------------------------------------*/
+    /*------------------------------------変数------------------------------------*/
     /*----------------------------------Accesser----------------------------------*/
     /*-----------------------------------Getter-----------------------------------*/
     /*-----------------------------------Setter-----------------------------------*/
-    /*------------------------------------�֐�------------------------------------*/
-
-    /*---------------------------------------------------------------------------------
-    *	
-    *	�R���X�g���N�^
-    *	 
-    -----------------------------------------------------------------------------------*/
-    static StageEditorWindow()
-    {
-        SceneView.duringSceneGui += CreatePrefab;
-    }
+    /*------------------------------------関数------------------------------------*/
 
 
     /*******************************************************************************
@@ -44,10 +35,13 @@ public class StageEditorWindow : EditorWindow
     * 
     ********************************************************************************
 
-    /*-----------------------------------�N���X------------------------------------*/
-    /*------------------------------------�萔------------------------------------*/
-    /*----------------------------SerializeField�ϐ�------------------------------*/
-    /*------------------------------------�ϐ�------------------------------------*/
+    /*-----------------------------------クラス------------------------------------*/
+    /*------------------------------------定数------------------------------------*/
+    /*----------------------------SerializeField変数------------------------------*/
+    /*------------------------------------変数------------------------------------*/
+
+    //初回起動時かどうか
+    static private bool m_isStartUp = true;
 
     //Prefabの親オブジェクト
     private static GameObject m_parentObj = null;
@@ -60,19 +54,57 @@ public class StageEditorWindow : EditorWindow
     //選択中のPrefab
     private static GameObject m_targetPrefab = null;
 
+    //エディターに存在するGizmoの親オブジェクト
+    static private GameObject m_editorGizmos = null; 
+    //Rayの着地点にGizmoを表示するオブジェクト
+    static private GameObject m_rayPointGizmoObj = null;
+    //ランダム生成の範囲を表示するオブジェクト
+    static private GameObject m_RandRadGizmoObj = null;
+
     //ボタンの大きさ
     private float m_buttonSize = 60;
     //ボタンの間隔
     private int m_padding = 5;
 
-    //�����_�������̐܂��݂��J���Ă��邩
-    private bool m_isOpenRandomToggle = false;
     //ランダム生成にするか
     private static bool m_isRandom = false;
     //ランダム生成される範囲の半径
     private static float m_randRad = 1.0f;
 
-    /*------------------------------------�֐�------------------------------------*/
+    /*------------------------------------関数------------------------------------*/
+
+    /*---------------------------------------------------------------------------------
+    *	
+    *   コンストラクタ
+    *	 
+    -----------------------------------------------------------------------------------*/
+    static StageEditorWindow()
+    {
+        SceneView.duringSceneGui += CreatePrefab;
+    }
+
+    private void OnEnable()
+    {
+        //親ギズモがあるか調べる
+        if (GameObject.Find("EditorGizmos") == null)
+        {
+            //親ギズモを生成する
+            GameObject editorGizmos = AssetDatabase.LoadAssetAtPath<GameObject>
+                ("Assets/Editor/EditorGizmos.prefab");
+
+            m_editorGizmos = (GameObject)PrefabUtility.InstantiatePrefab(editorGizmos);
+        }
+        else
+        {
+            //親ギズモオブジェクトを読み込む
+            m_editorGizmos = GameObject.Find("EditorGizmos");
+        }
+
+        //親ギズモから子ギズモを取得する
+        m_rayPointGizmoObj = m_editorGizmos.transform.GetChild(0).gameObject;
+        m_RandRadGizmoObj = m_editorGizmos.transform.GetChild(1).gameObject;
+
+    }
 
     [MenuItem("StageEditor/EditorWindow/EditorWindow", false, 1)]
     private static void ShowWindow()
@@ -82,7 +114,7 @@ public class StageEditorWindow : EditorWindow
 
     /*---------------------------------------------------------------------------------
     *	
-    *	�g���E�B���h�E�ɕ\����������
+    *	ウィンドウに表示されるもの
     *	 
     -----------------------------------------------------------------------------------*/
     private void OnGUI()
@@ -97,12 +129,12 @@ public class StageEditorWindow : EditorWindow
         m_buttonSize = EditorGUILayout.FloatField("ボタンの大きさ", m_buttonSize);
         m_padding = EditorGUILayout.IntField("ボタンの間隔", m_padding);
 
+        //選択中のPrefabのアイコンを表示
         EditorGUILayout.LabelField("選択中のPrefab");
-        //�I�𒆂̃A�C�R����\��
         EditorGUILayout.LabelField(new GUIContent(m_nowSelectPrefabIcon),
             GUILayout.Height(64), GUILayout.Width(64));
 
-        //�I�������{�^��
+        //選択を解除
         if (GUILayout.Button("選択解除"))
         {
             m_targetPrefab = null;
@@ -111,19 +143,26 @@ public class StageEditorWindow : EditorWindow
 
         EditorGUILayout.Space(20);
 
-        //�����_�������Ɋւ���܂��݂�\������
-        //m_isOpenRandomToggle = EditorGUILayout.BeginFoldoutHeaderGroup(m_isOpenRandomToggle, "�����_������");
-
+        //ランダム生成系をグループでまとめる
         using (EditorGUILayout.ToggleGroupScope randomGuiGroup = new EditorGUILayout.ToggleGroupScope("ランダム生成", m_isRandom))
         {
             m_isRandom = randomGuiGroup.enabled;
 
-            //�����_�������̔��a�̒l
-            m_randRad = EditorGUILayout.Slider("半径", m_randRad, 0.0f, 100.0f);
-        }
+            //ランダム生成が有効ならランダム生成範囲を表示するGizmoを表示する
+            if (m_RandRadGizmoObj.activeSelf != m_isRandom)
+                m_RandRadGizmoObj.SetActive(m_isRandom);
 
-        //�܂��݂��I������
-        //EditorGUILayout.EndFoldoutHeaderGroup();
+            //ランダム生成する半径
+            m_randRad = EditorGUILayout.Slider("半径", m_randRad, 0.0f, 100.0f);
+
+            //ギズモの半径とインスペクターで設定した値を同期させる
+            m_RandRadGizmoObj.transform.localScale = new Vector3
+            (
+                m_randRad,
+                m_RandRadGizmoObj.transform.localScale.y,
+                m_RandRadGizmoObj.transform.localScale.z
+             );
+        }
 
         int count = m_prefabDataTable.dataList.Count;
 
@@ -133,7 +172,7 @@ public class StageEditorWindow : EditorWindow
         {
             var data = m_prefabDataTable.dataList[i];
 
-            //��ʉ����A�����A������Ȃ��R���g���[������Rect
+            //ボタンのRect
             Rect rect = new Rect
             (
                 sceneSize.x / 2 - m_buttonSize * count / 2 + m_buttonSize * i + m_padding * i,
@@ -142,7 +181,7 @@ public class StageEditorWindow : EditorWindow
                 m_buttonSize
             );
 
-            //�N���b�N���ꂽ�A�C�R����Prefab�𐶐�����Ώۂ�Prefab�ɂ���
+            //クリックされたものを選択対象のPrefabにする
             if (GUI.Button(rect, data.icon.texture))
             {
                 m_targetPrefab = data.prefab;
@@ -163,11 +202,27 @@ public class StageEditorWindow : EditorWindow
         RaycastHit hit;
         GameObject hitObj = null;
 
-        //Ray���΂��Ĕ��肷��
+        //Rayの当たり判定
         if (IsCreatePrefab(out hit, out hitObj))
         {
-            //EditorDrawGizmo.DrawPoint(hit.point, GizmoType.NotInSelectionHierarchy);
+            //Gizmoを表示する
+            if (!m_editorGizmos.transform.GetChild(0).gameObject.activeSelf)
+            {
+                for (int i = 0; i < m_editorGizmos.transform.childCount; i++)
+                {
+                    m_editorGizmos.transform.GetChild(i).gameObject.SetActive(true);
+                }
+            }
 
+            //ギズモの座標をPrefabの生成地点にする
+            Vector3 rayPoint = PrefabCreatePosition2HitObj
+                (in hit, m_rayPointGizmoObj, hitObj);
+
+            m_rayPointGizmoObj.transform.position = rayPoint;
+            m_RandRadGizmoObj.transform.position = rayPoint;
+
+            //Prefabが選択されている上で左クリックするまで、
+            //これ以上処理しない
             if (m_targetPrefab == null 
             || Event.current.type != EventType.MouseDown
             || Event.current.button != 0)
@@ -175,8 +230,15 @@ public class StageEditorWindow : EditorWindow
 
             //Prefabを生成する
             GameObject prefab = (GameObject)PrefabUtility.InstantiatePrefab(m_targetPrefab);
+            
             //座標をRayが当たった位置を基準に算出する
+            if (prefab == null)
+                return;
             prefab.transform.position = PrefabCreatePosition2HitObj(in hit, prefab, hitObj);
+
+            //ランダムな値を足す
+            if (m_isRandom)
+                prefab.transform.position += RandomPos();
 
             //親オブジェクトを設定する
             if (m_parentObj != null)
@@ -184,9 +246,20 @@ public class StageEditorWindow : EditorWindow
 
             Selection.activeObject = prefab;
 
-            //Prefab���o���������ƃV�[�����X�V���ꂸ�A�ۑ�����Ȃ��\�������邽�߁A
-            //Undo�ɒǉ�����
+            //Prefabを出すだけだとシーンが保存されない可能性があるため
+            //Undoに追加する
             Undo.RegisterCreatedObjectUndo(prefab, "CreatePrefab");
+        }
+        else
+        {
+            if (m_editorGizmos.transform.GetChild(0).gameObject.activeSelf)
+            {
+                //Rayが当たっていない時は、Gizmoを非表示にする
+                for (int i = 0; i < m_editorGizmos.transform.childCount; i++)
+                {
+                    m_editorGizmos.transform.GetChild(i).gameObject.SetActive(false);
+                }
+            }
         }
     }
 
@@ -207,13 +280,16 @@ public class StageEditorWindow : EditorWindow
 
     /*---------------------------------------------------------------------------------
     *	
-    *	���e�@ : Ray�̓��������������Z�o���A�����ʒu���Z�o����
-    *	�����@ : Ray�̓����������A��������v���n�u
-    *	�߂�l : Prefab�̐����ʒu
+    *	内容　 : プレハブを生成する位置を算出する
+    *	引数　 : Rayの当たった結果、prefab、生成したいプレハブ
+    *	戻り値 : 生成する位置
     *	 
     -----------------------------------------------------------------------------------*/
-    private static Vector3 PrefabCreatePosition2HitObj(in RaycastHit hit, GameObject prefab, GameObject hitObj)
+    private static Vector3 PrefabCreatePosition2HitObj(in RaycastHit hit, GameObject obj, GameObject hitObj)
     {
+        if (hitObj == null)
+            return Vector3.zero;
+
         Vector3 hitDir = hit.point - hitObj.transform.position;
         hitDir.Normalize();
 
@@ -234,11 +310,11 @@ public class StageEditorWindow : EditorWindow
         {
             //+ or -
             if (hitDir.x > 0)
-                createPos.x += hitObj.transform.localScale.x / 2 +
-                    prefab.transform.localScale.x / 2;
+                createPos.x += hitObj.transform.lossyScale.x / 2 +
+                    obj.transform.localScale.x / 2;
             else
-                createPos.x -= hitObj.transform.localScale.x / 2 +
-                    prefab.transform.localScale.x / 2;
+                createPos.x -= hitObj.transform.lossyScale.x / 2 +
+                    obj.transform.localScale.x / 2;
         }
         //y軸にRayが当たった場合
         else if (comparitionHitDir.y >= comparitionHitDir.x
@@ -246,27 +322,32 @@ public class StageEditorWindow : EditorWindow
         {
             //+ or -
             if (hitDir.y > 0)
-                createPos.y += hitObj.transform.localScale.y / 2 +
-                    prefab.transform.localScale.y / 2;
+                createPos.y += hitObj.transform.lossyScale.y / 2 +
+                    obj.transform.localScale.y / 2;
             else
-                createPos.y -= hitObj.transform.localScale.y / 2 +
-                    prefab.transform.localScale.y / 2;
+                createPos.y -= hitObj.transform.lossyScale.y / 2 +
+                    obj.transform.localScale.y / 2;
         }
         //z軸にRayが当たった場合
         else
         {
             //+ or -
             if (hitDir.z > 0)
-                createPos.z += hitObj.transform.localScale.z / 2 +
-                    prefab.transform.localScale.z / 2;
+                createPos.z += hitObj.transform.lossyScale.z / 2 +
+                    obj.transform.localScale.z / 2;
             else
-                createPos.z -= hitObj.transform.localScale.z / 2 +
-                    prefab.transform.localScale.z / 2;
+                createPos.z -= hitObj.transform.lossyScale.z / 2 +
+                    obj.transform.localScale.z / 2;
         }
 
+        return createPos;
+    }
+
+    private static Vector3 RandomPos()
+    {
         //ランダム生成じゃなければ、これ以上処理しない
         if (!m_isRandom)
-            return createPos;
+            return Vector3.zero;
 
         float halfPi = Mathf.PI / 2;
 
@@ -276,15 +357,12 @@ public class StageEditorWindow : EditorWindow
         float randDis = Random.Range(-halfPi, halfPi);
 
         //座標をずらす
-        createPos += new Vector3
+        return new Vector3
         (
             Mathf.Cos(randRad),
             0.0f,
             Mathf.Sin(randRad)
          ) * m_randRad * randDis;
-
-        return createPos;
     }
-
 
 }

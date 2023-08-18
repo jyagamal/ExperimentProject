@@ -7,8 +7,9 @@ using UnityEngine;
 public class EditorDrawGizmo
 {
     [DrawGizmo(GizmoType.NonSelected | GizmoType.Selected)]
-    private static void DrawPoint(GameObject obj, GizmoType gizmoType)
+    private static void DrawPoint(DrawGizmoObj obj, GizmoType gizmoType)
     {
-        Gizmos.DrawWireSphere(obj.transform.position, 1f);
+        Gizmos.color = UnityEngine.Color.green;
+        Gizmos.DrawWireSphere(obj.transform.position, obj.transform.localScale.x);
     }
 }
