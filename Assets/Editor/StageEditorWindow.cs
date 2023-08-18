@@ -40,9 +40,6 @@ public class StageEditorWindow : EditorWindow
     /*----------------------------SerializeField変数------------------------------*/
     /*------------------------------------変数------------------------------------*/
 
-    //初回起動時かどうか
-    static private bool m_isStartUp = true;
-
     //Prefabの親オブジェクト
     private static GameObject m_parentObj = null;
 
@@ -70,7 +67,10 @@ public class StageEditorWindow : EditorWindow
     private static bool m_isRandom = false;
     //ランダム生成される範囲の半径
     private static float m_randRad = 1.0f;
-
+    //半径の区切り
+    private float[] m_randRadRangeArray = new float[] { 1.0f, 10.0f, 50.0f, 100.00f, 500.00f };
+    //適応する半径の区切り
+    private int m_randRadArrEle = 0;
     /*------------------------------------関数------------------------------------*/
 
     /*---------------------------------------------------------------------------------
@@ -148,12 +148,29 @@ public class StageEditorWindow : EditorWindow
         {
             m_isRandom = randomGuiGroup.enabled;
 
-            //ランダム生成が有効ならランダム生成範囲を表示するGizmoを表示する
+            //ランダム生成が有効なら、ランダム生成範囲を表示するGizmoを表示する
             if (m_RandRadGizmoObj.activeSelf != m_isRandom)
                 m_RandRadGizmoObj.SetActive(m_isRandom);
 
             //ランダム生成する半径
-            m_randRad = EditorGUILayout.Slider("半径", m_randRad, 0.0f, 100.0f);
+
+            float min = m_randRadRangeArray[m_randRadArrEle],
+                  max = m_randRadRangeArray[m_randRadArrEle +1] ;
+
+            //100.0f以上がGUI上だと小数点表記が無くなるため調整
+            float offset = (m_randRadRangeArray[m_randRadArrEle] >= 100.0f) ? 0.1f : 1f;
+
+            m_randRad = EditorGUILayout.Slider("半径", m_randRad,
+                min - offset,
+                max);
+
+            //現在の範囲内の最大値まで来たら、最大値を引き上げる
+            if (m_randRad >= max && m_randRadArrEle < m_randRadRangeArray.Length - 2)
+                    m_randRadArrEle+= 1;
+            //現在の範囲内の最小値まできたら、最小値を引き下げる
+            else if (m_randRad < min && m_randRadArrEle > 0)
+                    m_randRadArrEle-= 1;
+
 
             //ギズモの半径とインスペクターで設定した値を同期させる
             m_RandRadGizmoObj.transform.localScale = new Vector3
@@ -206,13 +223,7 @@ public class StageEditorWindow : EditorWindow
         if (IsCreatePrefab(out hit, out hitObj))
         {
             //Gizmoを表示する
-            if (!m_editorGizmos.transform.GetChild(0).gameObject.activeSelf)
-            {
-                for (int i = 0; i < m_editorGizmos.transform.childCount; i++)
-                {
-                    m_editorGizmos.transform.GetChild(i).gameObject.SetActive(true);
-                }
-            }
+            m_rayPointGizmoObj.SetActive(true);
 
             //ギズモの座標をPrefabの生成地点にする
             Vector3 rayPoint = PrefabCreatePosition2HitObj
@@ -252,9 +263,9 @@ public class StageEditorWindow : EditorWindow
         }
         else
         {
+            //Rayが当たっていない時は、Gizmoを非表示にする
             if (m_editorGizmos.transform.GetChild(0).gameObject.activeSelf)
             {
-                //Rayが当たっていない時は、Gizmoを非表示にする
                 for (int i = 0; i < m_editorGizmos.transform.childCount; i++)
                 {
                     m_editorGizmos.transform.GetChild(i).gameObject.SetActive(false);
