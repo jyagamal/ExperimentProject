@@ -55,13 +55,19 @@ public class StageEditorWindow : EditorWindow
     static private GameObject m_editorGizmos = null; 
     //Rayの着地点にGizmoを表示するオブジェクト
     static private GameObject m_rayPointGizmoObj = null;
+    //Prefabのメッシュを仮で描画するオブジェクト
+    static private GameObject m_demoMeshObj = null;
     //ランダム生成の範囲を表示するオブジェクト
     static private GameObject m_RandRadGizmoObj = null;
+    
 
     //ボタンの大きさ
     private float m_buttonSize = 60;
     //ボタンの間隔
     private int m_padding = 5;
+
+    //Rayに当たったオブジェクトの座標を参照するか
+    private static bool m_isUseRayHitObj = false;
 
     //ランダム生成にするか
     private static bool m_isRandom = false;
@@ -103,6 +109,7 @@ public class StageEditorWindow : EditorWindow
         //親ギズモから子ギズモを取得する
         m_rayPointGizmoObj = m_editorGizmos.transform.GetChild(0).gameObject;
         m_RandRadGizmoObj = m_editorGizmos.transform.GetChild(1).gameObject;
+        m_demoMeshObj = m_editorGizmos.transform.GetChild(2).gameObject;
 
     }
 
@@ -139,9 +146,12 @@ public class StageEditorWindow : EditorWindow
         {
             m_targetPrefab = null;
             m_nowSelectPrefabIcon = null;
+            DrawMeshGizmo.m_drawMesh = null;
         }
 
         EditorGUILayout.Space(20);
+
+        m_isUseRayHitObj = EditorGUILayout.Toggle("座標補正", m_isUseRayHitObj);
 
         //ランダム生成系をグループでまとめる
         using (EditorGUILayout.ToggleGroupScope randomGuiGroup = new EditorGUILayout.ToggleGroupScope("ランダム生成", m_isRandom))
@@ -152,17 +162,15 @@ public class StageEditorWindow : EditorWindow
             if (m_RandRadGizmoObj.activeSelf != m_isRandom)
                 m_RandRadGizmoObj.SetActive(m_isRandom);
 
-            //ランダム生成する半径
-
+            //ランダム生成する範囲
             float min = m_randRadRangeArray[m_randRadArrEle],
                   max = m_randRadRangeArray[m_randRadArrEle +1] ;
 
             //100.0f以上がGUI上だと小数点表記が無くなるため調整
-            float offset = (m_randRadRangeArray[m_randRadArrEle] >= 100.0f) ? 0.1f : 1f;
+            float offset = (m_randRadRangeArray[m_randRadArrEle] >= 100.0f) ?
+                0.1f : 1f;
 
-            m_randRad = EditorGUILayout.Slider("半径", m_randRad,
-                min - offset,
-                max);
+            m_randRad = EditorGUILayout.Slider("半径", m_randRad, min - offset, max);
 
             //現在の範囲内の最大値まで来たら、最大値を引き上げる
             if (m_randRad >= max && m_randRadArrEle < m_randRadRangeArray.Length - 2)
@@ -203,6 +211,17 @@ public class StageEditorWindow : EditorWindow
             {
                 m_targetPrefab = data.prefab;
                 m_nowSelectPrefabIcon = data.icon.texture;
+
+                //選択対象のMeshを取得する
+                MeshFilter demoMesh;
+                m_targetPrefab.TryGetComponent<MeshFilter>(out demoMesh);
+
+                DrawMeshGizmo.m_drawMesh = demoMesh.sharedMesh;
+
+                //Transformを同期する
+                m_demoMeshObj.transform.position = m_targetPrefab.transform.position;
+                m_demoMeshObj.transform.localScale = m_targetPrefab.transform.localScale;
+                m_demoMeshObj.transform.rotation = m_targetPrefab.transform.rotation;
             }
         }
     }
@@ -222,15 +241,27 @@ public class StageEditorWindow : EditorWindow
         //Rayの当たり判定
         if (IsCreatePrefab(out hit, out hitObj))
         {
-            //Gizmoを表示する
-            m_rayPointGizmoObj.SetActive(true);
+            GameObject targetObj = null;
+
+            //Rayの着地点を表示する
+            if (m_targetPrefab == null)
+            {
+                m_rayPointGizmoObj.SetActive(true);
+                targetObj ??= m_rayPointGizmoObj;
+            }
+            //Rayの着地点に選択中のPrefabのメッシュを表示する
+            else
+            {
+                m_demoMeshObj.SetActive(true);
+                targetObj ??= m_demoMeshObj;
+            }
 
             //ギズモの座標をPrefabの生成地点にする
-            Vector3 rayPoint = PrefabCreatePosition2HitObj
-                (in hit, m_rayPointGizmoObj, hitObj);
+            Vector3 rayPoint = PrefabCreatePosition2HitObj(in hit, targetObj, hitObj);
 
             m_rayPointGizmoObj.transform.position = rayPoint;
             m_RandRadGizmoObj.transform.position = rayPoint;
+            m_demoMeshObj.transform.position = rayPoint;
 
             //Prefabが選択されている上で左クリックするまで、
             //これ以上処理しない
@@ -276,9 +307,9 @@ public class StageEditorWindow : EditorWindow
 
     /*---------------------------------------------------------------------------------
     *	
-    *	���e�@ : Prefab�������o���邩���肷��
-    *	�����@ : Ray�̔��茋��
-    *	�߂�l : true:�����o���� false:�o���Ȃ� 
+    *	内容 : Prefabが生成出来るかRacastHitを行う
+    *	引数 : out Rayの結果
+    *	戻り値 : true:生成出来る false:生成出来ない
     *	 
     -----------------------------------------------------------------------------------*/
     private static bool IsCreatePrefab(out RaycastHit hit, out GameObject hitObj)
@@ -302,55 +333,74 @@ public class StageEditorWindow : EditorWindow
             return Vector3.zero;
 
         Vector3 hitDir = hit.point - hitObj.transform.position;
-        hitDir.Normalize();
+        
+        Vector3 hitDirNor = hitDir.normalized;
 
-        //比較用に正規化する
+        //比較用に符号をなくす
         Vector3 comparitionHitDir = new Vector3
         (
-            Mathf.Abs(hitDir.x),
-            Mathf.Abs(hitDir.y),
-            Mathf.Abs(hitDir.z)
+            Mathf.Abs(hitDirNor.x),
+            Mathf.Abs(hitDirNor.y),
+            Mathf.Abs(hitDirNor.z)
         );
 
         //ここから下もう少しスッキリさせたい
-        Vector3 createPos = hitObj.transform.position;
+        Vector3 createPos;
 
-        //x軸にRayが当たった場合
-        if (comparitionHitDir.x >= comparitionHitDir.y 
-            && comparitionHitDir.x >= comparitionHitDir.z)
+        if (m_isUseRayHitObj)
         {
-            //+ or -
-            if (hitDir.x > 0)
-                createPos.x += hitObj.transform.lossyScale.x / 2 +
-                    obj.transform.localScale.x / 2;
+            createPos = hitObj.transform.position;
+
+            //x軸にRayが当たった場合
+            if (comparitionHitDir.x >= comparitionHitDir.y
+                && comparitionHitDir.x >= comparitionHitDir.z)
+            {
+                //+ or -
+                if (hitDir.x > 0)
+                    createPos.x += hitObj.transform.lossyScale.x / 2 +
+                        obj.transform.localScale.x / 2;
+                else
+                    createPos.x -= hitObj.transform.lossyScale.x / 2 +
+                        obj.transform.localScale.x / 2;
+            }
+            //y軸にRayが当たった場合
+            else if (comparitionHitDir.y >= comparitionHitDir.x
+                     && comparitionHitDir.y >= comparitionHitDir.z)
+            {
+                //+ or -
+                if (hitDir.y > 0)
+                    createPos.y += hitObj.transform.lossyScale.y / 2 +
+                        obj.transform.localScale.y / 2;
+                else
+                    createPos.y -= hitObj.transform.lossyScale.y / 2 +
+                        obj.transform.localScale.y / 2;
+            }
+            //z軸にRayが当たった場合
             else
-                createPos.x -= hitObj.transform.lossyScale.x / 2 +
-                    obj.transform.localScale.x / 2;
+            {
+                //+ or -
+                if (hitDir.z > 0)
+                    createPos.z += hitObj.transform.lossyScale.z / 2 +
+                        obj.transform.localScale.z / 2;
+                else
+                    createPos.z -= hitObj.transform.lossyScale.z / 2 +
+                        obj.transform.localScale.z / 2;
+            }
         }
-        //y軸にRayが当たった場合
-        else if (comparitionHitDir.y >= comparitionHitDir.x
-                 && comparitionHitDir.y >= comparitionHitDir.z)
-        {
-            //+ or -
-            if (hitDir.y > 0)
-                createPos.y += hitObj.transform.lossyScale.y / 2 +
-                    obj.transform.localScale.y / 2;
-            else
-                createPos.y -= hitObj.transform.lossyScale.y / 2 +
-                    obj.transform.localScale.y / 2;
-        }
-        //z軸にRayが当たった場合
         else
         {
-            //+ or -
-            if (hitDir.z > 0)
-                createPos.z += hitObj.transform.lossyScale.z / 2 +
-                    obj.transform.localScale.z / 2;
-            else
-                createPos.z -= hitObj.transform.lossyScale.z / 2 +
-                    obj.transform.localScale.z / 2;
-        }
+            createPos = hit.point;
 
+            Vector3 scaleOffset = new Vector3
+            (
+                hitDirNor.x * obj.transform.localScale.x / 2,
+                hitDirNor.y * obj.transform.localScale.y / 2,
+                hitDirNor.z * obj.transform.localScale.z / 2
+            );
+
+            createPos += scaleOffset;
+        }
+        
         return createPos;
     }
 

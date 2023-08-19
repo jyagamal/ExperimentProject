@@ -4,10 +4,10 @@ using System.Drawing;
 using UnityEditor;
 using UnityEngine;
 
-public class EditorDrawGizmo
+public class DrawSphereGizmo
 {
     [DrawGizmo(GizmoType.NonSelected | GizmoType.Selected)]
-    private static void DrawPoint(DrawGizmoObj obj, GizmoType gizmoType)
+    private static void DrawSphere(DrawSphereGizmoObj obj, GizmoType gizmoType)
     {
         Gizmos.color = UnityEngine.Color.green;
         Gizmos.DrawWireSphere(obj.transform.position, obj.transform.localScale.x);
