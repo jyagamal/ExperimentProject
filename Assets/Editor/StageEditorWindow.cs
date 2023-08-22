@@ -9,6 +9,8 @@ using Codice.Client.BaseCommands.WkStatus.Printers;
 using Unity.Burst.CompilerServices;
 using static UnityEditor.EditorGUILayout;
 using static UnityEditor.PlayerSettings;
+using System.IO;
+using GluonGui.WorkspaceWindow.Views.WorkspaceExplorer;
 
 //起動時&コンパイル時にコンストラクタを呼び出す
 [InitializeOnLoad]
@@ -129,6 +131,59 @@ public class StageEditorWindow : EditorWindow
         //ScriptableObjectを読み込む
         this.LoadPrefab();
 
+        if (GUILayout.Button("全てのプレハブを読み込む"))
+        {
+            //読み込むPrefabがあるパスを指定させる
+            var filePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
+
+            //ディレクトリが存在しなければ処理しない
+            if (!Directory.Exists(filePath))
+                return;
+
+            //このままだとフルパスになっているため、
+            //Assets/までパスを短縮する
+            filePath = System.Text.RegularExpressions.
+                Regex.Match(filePath, "Assets/.*").Value;
+
+            //データテーブルを消去する
+            m_prefabDataTable.Clear();
+
+            //プレハブのアイコン画像を全て破棄する
+            this.DirectoryDelete("Assets/Editor/Data/PreviewIcon");
+
+            //プレハブを読み込む
+            var guids = AssetDatabase.FindAssets("t:GameObject", new string[] { filePath });
+            var paths = guids.Select(guid => AssetDatabase.GUIDToAssetPath(guid)).ToArray();
+            var list = paths.Select(_ => AssetDatabase.LoadAssetAtPath<GameObject>(_)).ToList();
+
+            if (list.Count == 0)
+            {
+                Debug.LogWarning("プレハブがありません\n" + "検索パス[" + filePath + "]");
+                return;
+            }
+
+            Debug.Log("プレハブを検索:" + list.Count + "つ格納\n" + "検索パス[" + filePath + "]");
+
+            foreach (GameObject prefab in list)
+            {
+                //プレハブのプレビュー写真を生成する
+                Texture2D prevIcon =  CreatePrefabPreview.RenderPreview(prefab);
+                prevIcon.Apply();
+
+                //Spriteに変換する
+                Sprite sprite = Sprite.Create
+                (
+                    prevIcon,
+                    new Rect(0, 0, prevIcon.width, prevIcon.height),
+                    Vector2.zero
+                );
+
+                //データテーブルに追加する
+                m_prefabDataTable.AddPrefab(prefab, sprite);
+
+            }
+        }
+
         //Prefabの親オブジェクトを設定する
         m_parentObj = (GameObject)EditorGUILayout.ObjectField
             ("Prefabの親オブジェクト", m_parentObj, typeof(GameObject), true);
@@ -230,7 +285,7 @@ public class StageEditorWindow : EditorWindow
     {
         //ScriptableObjectを読み込む
         m_prefabDataTable ??= AssetDatabase.LoadAssetAtPath<PrefabDataTable>
-            ("Assets/Data/PrefabDataTable.asset");
+            ("Assets/Editor/Data/PrefabDataTable.asset");
     }
 
     private static void CreatePrefab(SceneView sceneView)
@@ -424,6 +479,38 @@ public class StageEditorWindow : EditorWindow
             0.0f,
             Mathf.Sin(randRad)
          ) * m_randRad * randDis;
+    }
+
+    /*---------------------------------------------------------------------------------
+    *	
+    *	内容　 : 対象のディレクトリの中身を破棄する
+    *	引数　 : ディレクトリのパス
+    *	戻り値 : なし
+    *	 
+    -----------------------------------------------------------------------------------*/   
+    private void DirectoryDelete(string targetDirectoryPath)
+    {
+        //ディレクトリが存在しなければ処理しない
+        if (!Directory.Exists(targetDirectoryPath))   
+            return;
+
+        //ディレクトリ以外の全ファイルを削除
+        string[] filePaths = Directory.GetFiles(targetDirectoryPath);
+        foreach (string filePath in filePaths)
+        {
+            File.SetAttributes(filePath, FileAttributes.Normal);
+            File.Delete(filePath);
+        }
+
+        //ディレクトリの中のディレクトリも再帰的に削除
+        string[] directoryPaths = Directory.GetDirectories(targetDirectoryPath);
+        foreach (string directoryPath in directoryPaths)
+        {
+            DirectoryDelete(directoryPath);
+        }
+
+        //中が空になったらディレクトリ自身も削除
+        Directory.Delete(targetDirectoryPath, false);
     }
 
 }
