@@ -46,7 +46,7 @@ public static class CreateNewUi
                 buttonSize
             );
 
-            if (GUI.Button(rect, data.icon.texture))
+            if (GUI.Button(rect, data.icon))
             {
                 //PrefabÇê∂ê¨Ç∑ÇÈ
                 GameObject go = (GameObject)PrefabUtility.InstantiatePrefab(data.prefab);

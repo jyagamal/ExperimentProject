@@ -6,11 +6,11 @@ using UnityEditor;
 using Unity.VisualScripting;
 using System.Linq;
 using Codice.Client.BaseCommands.WkStatus.Printers;
-using Unity.Burst.CompilerServices;
 using static UnityEditor.EditorGUILayout;
 using static UnityEditor.PlayerSettings;
 using System.IO;
 using GluonGui.WorkspaceWindow.Views.WorkspaceExplorer;
+using UnityEngine.Rendering;
 
 //起動時&コンパイル時にコンストラクタを呼び出す
 [InitializeOnLoad]
@@ -134,52 +134,61 @@ public class StageEditorWindow : EditorWindow
         if (GUILayout.Button("全てのプレハブを読み込む"))
         {
             //読み込むPrefabがあるパスを指定させる
-            var filePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
+            var fullFilePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
+
+            Debug.Log(fullFilePath);
 
             //ディレクトリが存在しなければ処理しない
-            if (!Directory.Exists(filePath))
+            if (!Directory.Exists(fullFilePath))
                 return;
 
             //このままだとフルパスになっているため、
             //Assets/までパスを短縮する
-            filePath = System.Text.RegularExpressions.
-                Regex.Match(filePath, "Assets/.*").Value;
+            string relativeFilePath = System.Text.RegularExpressions.
+                Regex.Match(fullFilePath, "Assets/.*").Value;
 
-            //データテーブルを消去する
+           //データテーブルを消去する
             m_prefabDataTable.Clear();
 
             //プレハブのアイコン画像を全て破棄する
-            this.DirectoryDelete("Assets/Editor/Data/PreviewIcon");
+            //this.DirectoryDelete("Assets/Editor/Data/PreviewIcon");
 
             //プレハブを読み込む
-            var guids = AssetDatabase.FindAssets("t:GameObject", new string[] { filePath });
+            var guids = AssetDatabase.FindAssets("t:GameObject", new string[] { relativeFilePath });
             var paths = guids.Select(guid => AssetDatabase.GUIDToAssetPath(guid)).ToArray();
             var list = paths.Select(_ => AssetDatabase.LoadAssetAtPath<GameObject>(_)).ToList();
 
             if (list.Count == 0)
             {
-                Debug.LogWarning("プレハブがありません\n" + "検索パス[" + filePath + "]");
+                Debug.LogWarning("プレハブがありません\n" + "検索パス[" + relativeFilePath + "]");
                 return;
             }
 
-            Debug.Log("プレハブを検索:" + list.Count + "つ格納\n" + "検索パス[" + filePath + "]");
+            Debug.Log("プレハブを検索:" + list.Count + "つ格納\n" + "検索パス[" + relativeFilePath + "]");
 
             foreach (GameObject prefab in list)
             {
                 //プレハブのプレビュー写真を生成する
                 Texture2D prevIcon =  CreatePrefabPreview.RenderPreview(prefab);
+                //色を反映する
                 prevIcon.Apply();
 
-                //Spriteに変換する
-                Sprite sprite = Sprite.Create
-                (
-                    prevIcon,
-                    new Rect(0, 0, prevIcon.width, prevIcon.height),
-                    Vector2.zero
-                );
+                string prevIconPath = "/Editor/Data/PreviewIcon/" + prefab.name + ".png";
+
+                //PNG画像を生成する
+                //ここだけフルパスじゃないとダメっぽい
+                File.WriteAllBytes(Application.dataPath + prevIconPath, prevIcon.EncodeToPNG());
+
+                //プレビュー写真をアセットとしてプロジェクトに読み込む
+                //(.metaが生成されることでプロジェクトに反映される)
+                AssetDatabase.ImportAsset("Assets" + prevIconPath);
+
+                //アセットとしてのプレビュー写真を読み込む
+                var prevIconAssets = AssetDatabase.LoadAssetAtPath
+                    ("Assets" +prevIconPath, typeof(Texture2D));
 
                 //データテーブルに追加する
-                m_prefabDataTable.AddPrefab(prefab, sprite);
+                m_prefabDataTable.AddPrefab(prefab, prevIconAssets as Texture2D);
 
             }
         }
@@ -262,10 +271,10 @@ public class StageEditorWindow : EditorWindow
             );
 
             //クリックされたものを選択対象のPrefabにする
-            if (GUI.Button(rect, data.icon.texture))
+            if (GUI.Button(rect, data.icon))
             {
                 m_targetPrefab = data.prefab;
-                m_nowSelectPrefabIcon = data.icon.texture;
+                m_nowSelectPrefabIcon = data.icon;
 
                 //選択対象のMeshを取得する
                 MeshFilter demoMesh;
@@ -294,7 +303,7 @@ public class StageEditorWindow : EditorWindow
         GameObject hitObj = null;
 
         //Rayの当たり判定
-        if (IsCreatePrefab(out hit, out hitObj))
+        if (EditorRaycastHelper.RaycastAgainstScene(out hit, out hitObj))
         {
             GameObject targetObj = null;
 
@@ -358,21 +367,6 @@ public class StageEditorWindow : EditorWindow
                 }
             }
         }
-    }
-
-    /*---------------------------------------------------------------------------------
-    *	
-    *	内容 : Prefabが生成出来るかRacastHitを行う
-    *	引数 : out Rayの結果
-    *	戻り値 : true:生成出来る false:生成出来ない
-    *	 
-    -----------------------------------------------------------------------------------*/
-    private static bool IsCreatePrefab(out RaycastHit hit, out GameObject hitObj)
-    {
-        if (EditorRaycastHelper.RaycastAgainstScene(out hit, out hitObj))
-            return true;
-
-        return false;
     }
 
     /*---------------------------------------------------------------------------------

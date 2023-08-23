@@ -13,15 +13,5 @@ MonoBehaviour:
   m_Name: PrefabDataTable
   m_EditorClassIdentifier: 
   dataList:
-  - icon: {fileID: 21300000, guid: 62aa6b042b735434483de31897e8b321, type: 3}
-    prefab: {fileID: 7221144247954208934, guid: ea43514d8d02d714bad06038d29265c7,
-      type: 3}
-  - icon: {fileID: 21300000, guid: e6eae21c9e8253647b05fd77062f0bd3, type: 3}
-    prefab: {fileID: 6550368342404318587, guid: d78faa9f8378eaf43a6093108fdd48df,
-      type: 3}
-  - icon: {fileID: 21300000, guid: 29a9d021eb43eaa429e08a6aa5830def, type: 3}
-    prefab: {fileID: 1907536353657222596, guid: 38f9708197dcea4418b853f6704f68b8,
-      type: 3}
-  - icon: {fileID: 21300000, guid: 34e3068569783c24e98b45acb16dcd09, type: 3}
-    prefab: {fileID: 1700695208897989317, guid: 232f0a930e8c88a46b33ad363db1026d,
-      type: 3}
+  - icon: {fileID: 2800000, guid: bb48deb26e8a9a64297fa2444dfd5431, type: 3}
+    prefab: {fileID: 1750759681000333507, guid: 76069a355ffdcf8458a03c3dbe69c8fd, type: 3}

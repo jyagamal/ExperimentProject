@@ -6,14 +6,14 @@ using UnityEngine;
 [Serializable]
 public class PrefabData 
 {
-    public Sprite icon;
+    public Texture2D icon;
     public GameObject prefab;
 }
 
 [CreateAssetMenu(fileName = "PrefabDataTable", menuName = "Scriptableobject/PrefabDataTable")]
 public class PrefabDataTable : ScriptableObject
 {
-    public void AddPrefab(GameObject prefab, Sprite icon)
+    public void AddPrefab(GameObject prefab, Texture2D icon)
     {
         PrefabData data = new PrefabData();
         data.prefab = prefab;
