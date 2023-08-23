@@ -169,7 +169,8 @@ public class StageEditorWindow : EditorWindow
             foreach (GameObject prefab in list)
             {
                 //プレハブのプレビュー写真を生成する
-                Texture2D prevIcon =  CreatePrefabPreview.RenderPreview(prefab);
+                Texture2D prevIcon = AssetPreview.GetAssetPreview(prefab);
+                    //CreatePrefabPreview.RenderPreview(prefab);
                 //色を反映する
                 prevIcon.Apply();
 
