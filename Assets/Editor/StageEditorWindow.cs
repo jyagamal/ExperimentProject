@@ -42,11 +42,17 @@ public class StageEditorWindow : EditorWindow
     /*----------------------------SerializeField変数------------------------------*/
     /*------------------------------------変数------------------------------------*/
 
+    //windowのスクロールバーの座標
+    private static Vector2 m_windowScrollbarPosition;
+
     //Prefabの親オブジェクト
     private static GameObject m_parentObj = null;
 
     //PrefabTable
     private PrefabDataTable m_prefabDataTable = null;
+
+    //ボタンのスクロールバーの座標
+    private Vector2 m_buttonScrollbarPosition;
 
     //選択中のPrefabのアイコン
     private Texture2D m_nowSelectPrefabIcon;
@@ -64,9 +70,7 @@ public class StageEditorWindow : EditorWindow
     
 
     //ボタンの大きさ
-    private float m_buttonSize = 60;
-    //ボタンの間隔
-    private int m_padding = 5;
+    private float m_buttonSize = 100;
 
     //Rayに当たったオブジェクトの座標を参照するか
     private static bool m_isUseRayHitObj = false;
@@ -118,7 +122,9 @@ public class StageEditorWindow : EditorWindow
     [MenuItem("StageEditor/EditorWindow/EditorWindow", false, 1)]
     private static void ShowWindow()
     {
+
         StageEditorWindow stageEditorWindow = EditorWindow.GetWindow<StageEditorWindow>();
+
     }
 
     /*---------------------------------------------------------------------------------
@@ -128,6 +134,9 @@ public class StageEditorWindow : EditorWindow
     -----------------------------------------------------------------------------------*/
     private void OnGUI()
     {
+        m_windowScrollbarPosition = EditorGUILayout.BeginScrollView(m_windowScrollbarPosition);
+
+
         //ScriptableObjectを読み込む
         this.LoadPrefab();
 
@@ -199,7 +208,8 @@ public class StageEditorWindow : EditorWindow
             ("Prefabの親オブジェクト", m_parentObj, typeof(GameObject), true);
 
         m_buttonSize = EditorGUILayout.FloatField("ボタンの大きさ", m_buttonSize);
-        m_padding = EditorGUILayout.IntField("ボタンの間隔", m_padding);
+
+        EditorGUILayout.Space(20);
 
         //選択中のPrefabのアイコンを表示
         EditorGUILayout.LabelField("選択中のPrefab");
@@ -216,63 +226,29 @@ public class StageEditorWindow : EditorWindow
 
         EditorGUILayout.Space(20);
 
-        m_isUseRayHitObj = EditorGUILayout.Toggle("座標補正", m_isUseRayHitObj);
-
-        //ランダム生成系をグループでまとめる
-        using (EditorGUILayout.ToggleGroupScope randomGuiGroup = new EditorGUILayout.ToggleGroupScope("ランダム生成", m_isRandom))
-        {
-            m_isRandom = randomGuiGroup.enabled;
-
-            //ランダム生成が有効なら、ランダム生成範囲を表示するGizmoを表示する
-            if (m_RandRadGizmoObj.activeSelf != m_isRandom)
-                m_RandRadGizmoObj.SetActive(m_isRandom);
-
-            //ランダム生成する範囲
-            float min = m_randRadRangeArray[m_randRadArrEle],
-                  max = m_randRadRangeArray[m_randRadArrEle +1] ;
-
-            //100.0f以上がGUI上だと小数点表記が無くなるため調整
-            float offset = (m_randRadRangeArray[m_randRadArrEle] >= 100.0f) ?
-                0.1f : 1f;
-
-            m_randRad = EditorGUILayout.Slider("半径", m_randRad, min - offset, max);
-
-            //現在の範囲内の最大値まで来たら、最大値を引き上げる
-            if (m_randRad >= max && m_randRadArrEle < m_randRadRangeArray.Length - 2)
-                    m_randRadArrEle+= 1;
-            //現在の範囲内の最小値まできたら、最小値を引き下げる
-            else if (m_randRad < min && m_randRadArrEle > 0)
-                    m_randRadArrEle-= 1;
-
-
-            //ギズモの半径とインスペクターで設定した値を同期させる
-            m_RandRadGizmoObj.transform.localScale = new Vector3
-            (
-                m_randRad,
-                m_RandRadGizmoObj.transform.localScale.y,
-                m_RandRadGizmoObj.transform.localScale.z
-             );
-        }
-
+        // 横の要素数求める
+        float windowWidth = position.width;
+        int horizontalMaxNumber = Mathf.FloorToInt(windowWidth/ (m_buttonSize));
         int count = m_prefabDataTable.dataList.Count;
 
-        Vector2 sceneSize = new Vector2(300, 500);
+        bool inHorizontalLayout = false;
 
-        foreach (int i in Enumerable.Range(0, count))
+        m_buttonScrollbarPosition = EditorGUILayout.BeginScrollView
+            (m_buttonScrollbarPosition,GUILayout.Width(windowWidth-10),GUILayout.Height(300));
+
+        for (int i = 0; i < count; i++)
         {
+            if (i % horizontalMaxNumber == 0)
+            {
+                // 横レイアウト開始
+                EditorGUILayout.BeginHorizontal();
+                inHorizontalLayout = true;
+            }
+
             var data = m_prefabDataTable.dataList[i];
 
-            //ボタンのRect
-            Rect rect = new Rect
-            (
-                sceneSize.x / 2 - m_buttonSize * count / 2 + m_buttonSize * i + m_padding * i,
-                sceneSize.y - m_buttonSize * 1.6f,
-                m_buttonSize,
-                m_buttonSize
-            );
-
             //クリックされたものを選択対象のPrefabにする
-            if (GUI.Button(rect, data.icon))
+            if (GUILayout.Button(data.icon, GUILayout.Width(m_buttonSize), GUILayout.Height(m_buttonSize)))
             {
                 m_targetPrefab = data.prefab;
                 m_nowSelectPrefabIcon = data.icon;
@@ -288,7 +264,68 @@ public class StageEditorWindow : EditorWindow
                 m_demoMeshObj.transform.localScale = m_targetPrefab.transform.localScale;
                 m_demoMeshObj.transform.rotation = m_targetPrefab.transform.rotation;
             }
+
+            if (i % horizontalMaxNumber == horizontalMaxNumber - 1)
+            {
+                // 横レイアウト終了
+                EditorGUILayout.EndHorizontal();
+                inHorizontalLayout = false;
+            }
+
+            
         }
+
+        if (inHorizontalLayout)
+        {
+            // horizontalMaxNumber ちょうどの数以外だと横レイアウト開きっぱなしになる
+            // その際はここで横レイアウト終了
+            EditorGUILayout.EndHorizontal();
+        }
+
+        EditorGUILayout.EndScrollView();
+
+        EditorGUILayout.Space(20);
+
+        m_isUseRayHitObj = EditorGUILayout.Toggle("座標補正", m_isUseRayHitObj);
+
+        //ランダム生成系をグループでまとめる
+        using (EditorGUILayout.ToggleGroupScope randomGuiGroup = new EditorGUILayout.ToggleGroupScope("ランダム生成", m_isRandom))
+        {
+            m_isRandom = randomGuiGroup.enabled;
+
+            //ランダム生成が有効なら、ランダム生成範囲を表示するGizmoを表示する
+            if (m_RandRadGizmoObj.activeSelf != m_isRandom)
+                m_RandRadGizmoObj.SetActive(m_isRandom);
+
+            //ランダム生成する範囲
+            float min = m_randRadRangeArray[m_randRadArrEle],
+                  max = m_randRadRangeArray[m_randRadArrEle + 1];
+
+            //100.0f以上がGUI上だと小数点表記が無くなるため調整
+            float offset = (m_randRadRangeArray[m_randRadArrEle] >= 100.0f) ?
+                0.1f : 1f;
+
+            m_randRad = EditorGUILayout.Slider("半径", m_randRad, min - offset, max);
+
+            //現在の範囲内の最大値まで来たら、最大値を引き上げる
+            if (m_randRad >= max && m_randRadArrEle < m_randRadRangeArray.Length - 2)
+                m_randRadArrEle += 1;
+            //現在の範囲内の最小値まできたら、最小値を引き下げる
+            else if (m_randRad < min && m_randRadArrEle > 0)
+                m_randRadArrEle -= 1;
+
+
+            //ギズモの半径とインスペクターで設定した値を同期させる
+            m_RandRadGizmoObj.transform.localScale = new Vector3
+            (
+                m_randRad,
+                m_RandRadGizmoObj.transform.localScale.y,
+                m_RandRadGizmoObj.transform.localScale.z
+             );
+        }
+
+        EditorGUILayout.EndScrollView();
+
     }
 
     private void LoadPrefab()
