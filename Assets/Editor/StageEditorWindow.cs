@@ -145,8 +145,6 @@ public class StageEditorWindow : EditorWindow
             //読み込むPrefabがあるパスを指定させる
             var fullFilePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
 
-            Debug.Log(fullFilePath);
-
             //ディレクトリが存在しなければ処理しない
             if (!Directory.Exists(fullFilePath))
                 return;
@@ -159,27 +157,21 @@ public class StageEditorWindow : EditorWindow
            //データテーブルを消去する
             m_prefabDataTable.Clear();
 
-            //プレハブのアイコン画像を全て破棄する
-            //this.DirectoryDelete("Assets/Editor/Data/PreviewIcon");
-
             //プレハブを読み込む
-            var guids = AssetDatabase.FindAssets("t:GameObject", new string[] { relativeFilePath });
-            var paths = guids.Select(guid => AssetDatabase.GUIDToAssetPath(guid)).ToArray();
-            var list = paths.Select(_ => AssetDatabase.LoadAssetAtPath<GameObject>(_)).ToList();
+            List<GameObject> list = this.FindDirectoryGameObject(relativeFilePath);
 
-            if (list.Count == 0)
+            if (list.Count() == 0)
             {
                 Debug.LogWarning("プレハブがありません\n" + "検索パス[" + relativeFilePath + "]");
                 return;
             }
 
-            Debug.Log("プレハブを検索:" + list.Count + "つ格納\n" + "検索パス[" + relativeFilePath + "]");
+            Debug.Log("プレハブを検索:" + list.Count() + "つ格納\n" + "検索パス[" + relativeFilePath + "]");
 
             foreach (GameObject prefab in list)
             {
                 //プレハブのプレビュー写真を生成する
                 Texture2D prevIcon = AssetPreview.GetAssetPreview(prefab);
-                    //CreatePrefabPreview.RenderPreview(prefab);
                 //色を反映する
                 prevIcon.Apply();
 
@@ -543,6 +535,26 @@ public class StageEditorWindow : EditorWindow
 
         //中が空になったらディレクトリ自身も削除
         Directory.Delete(targetDirectoryPath, false);
+    }
+
+    /*---------------------------------------------------------------------------------
+    *	
+    *	内容　 : ディレクトリからプレハブを検索する
+    *	引数　 : ディレクトリの相対パス
+    *	戻り値 : 見つかったプレハブのList
+    *	 
+    -----------------------------------------------------------------------------------*/
+    private List<GameObject> FindDirectoryGameObject(string relativeFilePath)
+    {
+        //ディレクトリが存在しなければ処理しない
+        if (!Directory.Exists(relativeFilePath))
+            return new List<GameObject>();
+
+        var guids = AssetDatabase.FindAssets("t:GameObject", new string[] { relativeFilePath });
+        var paths = guids.Select(guid => AssetDatabase.GUIDToAssetPath(guid)).ToArray();
+        var list = paths.Select(_ => AssetDatabase.LoadAssetAtPath<GameObject>(_)).ToList();
+
+        return list;
     }
 
 }
