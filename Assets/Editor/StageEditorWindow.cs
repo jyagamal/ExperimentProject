@@ -59,6 +59,13 @@ public class StageEditorWindow : EditorWindow
     //選択中のPrefab
     private static GameObject m_targetPrefab = null;
 
+    //選択中のPrefabのメッシュの大きさ
+    static private Vector3 m_targetPrefabMeshData;
+
+    //Rayに当たったオブジェクト
+    static private GameObject m_rayHitObj;
+    //Rayに当たったオブジェクトのメッシュの大きさ
+    static private Vector3 m_rayHitObjMeshData;
     //エディターに存在するGizmoの親オブジェクト
     static private GameObject m_editorGizmos = null; 
     //Rayの着地点にGizmoを表示するオブジェクト
@@ -68,7 +75,6 @@ public class StageEditorWindow : EditorWindow
     //ランダム生成の範囲を表示するオブジェクト
     static private GameObject m_RandRadGizmoObj = null;
     
-
     //ボタンの大きさ
     private float m_buttonSize = 100;
 
@@ -214,6 +220,7 @@ public class StageEditorWindow : EditorWindow
             m_targetPrefab = null;
             m_nowSelectPrefabIcon = null;
             DrawMeshGizmo.m_drawMesh = null;
+            m_targetPrefabMeshData = Vector3.zero;
         }
 
         EditorGUILayout.Space(20);
@@ -249,6 +256,9 @@ public class StageEditorWindow : EditorWindow
                 MeshFilter demoMesh;
                 m_targetPrefab.TryGetComponent<MeshFilter>(out demoMesh);
 
+                //メッシュの情報を取得する
+                m_targetPrefabMeshData = m_targetPrefab.GetComponent<MeshRenderer>().bounds.extents;
+
                 DrawMeshGizmo.m_drawMesh = demoMesh.sharedMesh;
 
                 //Transformを同期する
@@ -262,9 +272,7 @@ public class StageEditorWindow : EditorWindow
                 // 横レイアウト終了
                 EditorGUILayout.EndHorizontal();
                 inHorizontalLayout = false;
-            }
-
-            
+            }   
         }
 
         if (inHorizontalLayout)
@@ -348,6 +356,19 @@ public class StageEditorWindow : EditorWindow
             {
                 m_demoMeshObj.SetActive(true);
                 targetObj ??= m_demoMeshObj;
+            }
+
+            if (hitObj == null)
+                return;
+
+            if (m_rayHitObj != hitObj)
+            {
+                ;
+                MeshRenderer renderer;
+                hitObj.TryGetComponent<MeshRenderer>(out renderer);
+
+                m_rayHitObj = hitObj;
+                m_rayHitObjMeshData = renderer.bounds.extents;
             }
 
             //ギズモの座標をPrefabの生成地点にする
@@ -436,11 +457,11 @@ public class StageEditorWindow : EditorWindow
             {
                 //+ or -
                 if (hitDir.x > 0)
-                    createPos.x += hitObj.transform.lossyScale.x / 2 +
-                        obj.transform.localScale.x / 2;
+                    createPos.x += m_rayHitObjMeshData.x +
+                        m_targetPrefabMeshData.x;
                 else
-                    createPos.x -= hitObj.transform.lossyScale.x / 2 +
-                        obj.transform.localScale.x / 2;
+                    createPos.x -= m_rayHitObjMeshData.x +
+                        m_targetPrefabMeshData.x;
             }
             //y軸にRayが当たった場合
             else if (comparitionHitDir.y >= comparitionHitDir.x
@@ -448,22 +469,22 @@ public class StageEditorWindow : EditorWindow
             {
                 //+ or -
                 if (hitDir.y > 0)
-                    createPos.y += hitObj.transform.lossyScale.y / 2 +
-                        obj.transform.localScale.y / 2;
+                    createPos.y += m_rayHitObjMeshData.y +
+                        m_targetPrefabMeshData.y;
                 else
-                    createPos.y -= hitObj.transform.lossyScale.y / 2 +
-                        obj.transform.localScale.y / 2;
+                    createPos.y -= m_rayHitObjMeshData.y +
+                        m_targetPrefabMeshData.y;
             }
             //z軸にRayが当たった場合
             else
             {
                 //+ or -
                 if (hitDir.z > 0)
-                    createPos.z += hitObj.transform.lossyScale.z / 2 +
-                        obj.transform.localScale.z / 2;
+                    createPos.z += m_rayHitObjMeshData.z +
+                        m_targetPrefabMeshData.z;
                 else
-                    createPos.z -= hitObj.transform.lossyScale.z / 2 +
-                        obj.transform.localScale.z / 2;
+                    createPos.z -= m_rayHitObjMeshData.z +
+                        m_targetPrefabMeshData.z;
             }
         }
         else
@@ -472,9 +493,9 @@ public class StageEditorWindow : EditorWindow
 
             Vector3 scaleOffset = new Vector3
             (
-                hitDirNor.x * obj.transform.localScale.x / 2,
-                hitDirNor.y * obj.transform.localScale.y / 2,
-                hitDirNor.z * obj.transform.localScale.z / 2
+                hitDirNor.x * m_targetPrefabMeshData.x,
+                hitDirNor.y * m_targetPrefabMeshData.y,
+                hitDirNor.z * m_targetPrefabMeshData.z
             );
 
             createPos += scaleOffset;
