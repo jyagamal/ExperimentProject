@@ -59,6 +59,8 @@ public class StageEditorWindow : EditorWindow
     //選択中のPrefab
     private static GameObject m_targetPrefab = null;
 
+    private string m_searchName;
+
     //選択中のPrefabのメッシュの大きさ
     static private Vector3 m_targetPrefabMeshData;
 
@@ -223,6 +225,10 @@ public class StageEditorWindow : EditorWindow
             m_targetPrefabMeshData = Vector3.zero;
         }
 
+
+        EditorGUILayout.Space(20);
+        m_searchName = EditorGUILayout.TextField("検索", m_searchName);
+
         EditorGUILayout.Space(20);
 
         // 横の要素数求める
@@ -235,9 +241,12 @@ public class StageEditorWindow : EditorWindow
         m_buttonScrollbarPosition = EditorGUILayout.BeginScrollView
             (m_buttonScrollbarPosition,GUILayout.Width(windowWidth-10),GUILayout.Height(300));
 
+        int showButtonNum = 0;
+
         for (int i = 0; i < count; i++)
         {
-            if (i % horizontalMaxNumber == 0)
+            if (showButtonNum % horizontalMaxNumber == 0 &&
+                !inHorizontalLayout)
             {
                 // 横レイアウト開始
                 EditorGUILayout.BeginHorizontal();
@@ -245,6 +254,13 @@ public class StageEditorWindow : EditorWindow
             }
 
             var data = m_prefabDataTable.dataList[i];
+            bool isShow = true;
+
+            if (m_searchName != "")
+                isShow = this.SearchPrefab(data.prefab);
+
+            if (!isShow)
+                continue;
 
             //クリックされたものを選択対象のPrefabにする
             if (GUILayout.Button(data.icon, GUILayout.Width(m_buttonSize), GUILayout.Height(m_buttonSize)))
@@ -267,12 +283,14 @@ public class StageEditorWindow : EditorWindow
                 m_demoMeshObj.transform.rotation = m_targetPrefab.transform.rotation;
             }
 
-            if (i % horizontalMaxNumber == horizontalMaxNumber - 1)
+            if (showButtonNum % horizontalMaxNumber == horizontalMaxNumber - 1)
             {
                 // 横レイアウト終了
                 EditorGUILayout.EndHorizontal();
                 inHorizontalLayout = false;
-            }   
+            }
+
+            showButtonNum++;
         }
 
         if (inHorizontalLayout)
@@ -502,6 +520,31 @@ public class StageEditorWindow : EditorWindow
         }
         
         return createPos;
+    }
+
+    /*---------------------------------------------------------------------------------
+    *	
+    *	内容　 : プレハブが表示対象か判定する
+    *	引数　 : プレハブ
+    *	戻り値 : 表示対象か否か
+    *	 
+    -----------------------------------------------------------------------------------*/
+    private bool SearchPrefab(GameObject prefab)
+    {
+        string prefabName = prefab.name;
+
+        //プレハブの名前より長いなら検索しない
+        if (prefabName.Length < m_searchName.Length)
+            return false;
+
+        //違う文字があったら表示
+        for (int i = 0; i < m_searchName.Length; i++)
+        {
+            if (prefabName[i] != m_searchName[i])
+                return false;
+        }
+
+        return true;
     }
 
     private static Vector3 RandomPos()
