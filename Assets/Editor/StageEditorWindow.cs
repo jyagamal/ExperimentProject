@@ -1,17 +1,8 @@
-using System.Collections;
 using System.Collections.Generic;
-using UnityEngine;
-
-using UnityEditor;
-using Unity.VisualScripting;
-using System.Linq;
-using Codice.Client.BaseCommands.WkStatus.Printers;
-using static UnityEditor.EditorGUILayout;
-using static UnityEditor.PlayerSettings;
 using System.IO;
-using GluonGui.WorkspaceWindow.Views.WorkspaceExplorer;
-using UnityEngine.Rendering;
-using UnityEngine.UIElements;
+using System.Linq;
+using UnityEditor;
+using UnityEngine;
 
 //起動時&コンパイル時にコンストラクタを呼び出す
 [InitializeOnLoad]
@@ -43,9 +34,12 @@ public class StageEditorWindow : EditorWindow
 
     private enum eWay
     {
-        X = 0,
-        Y,
-        Z,
+        Xp = 0,
+        Xm,
+        Yp,
+        Ym,
+        Zp,
+        Zm,
         Null = 999,
     }
 
@@ -485,22 +479,36 @@ public class StageEditorWindow : EditorWindow
 
         Vector3 hitDir = (hit.point - hitObj.transform.position).normalized;
 
-        ////Rayが当たったオブジェクトから、カメラの方向を算出する
-        //Vector3 cameraDir = (SceneView.currentDrawingSceneView.camera.transform.position - 
-        //    hitObj.transform.position).normalized;
+        Vector3[] objWays =
+        {
+            Vector3.right,
+            Vector3.right *  -1,
+            Vector3.up,
+            Vector3.up * -1,
+            Vector3.forward,
+            Vector3.forward * -1,
+        };
 
-        ////内積で角度を算出する
-        //float cosFormedAngle = Vector3.Dot(cameraDir, hitDir);
+        //Rayが当たったオブジェクトから、カメラの方向を算出する
+        Vector3 cameraDir = (SceneView.currentDrawingSceneView.camera.transform.position -
+            hitObj.transform.position).normalized;
 
-        //if (cosFormedAngle < 0.0f)
-        //    return Vector3.zero;
+        //カメラがどの軸の面を見ているのか算出する
+        eWay cameraWay = eWay.Null;
 
-        ////cosをsinに変換
-        //float sinFormedAngle = Mathf.Acos(cosFormedAngle);
+        for (int i = 0; i < objWays.Length; i++)
+        {
+            //内積で角度を算出する
+            float sinFormedAngle = Mathf.Acos(Vector3.Dot(cameraDir, objWays[i]));
 
-        //if (sinFormedAngle >= Mathf.PI / 2)
-        //    return Vector3.zero;
+            //角度が大きければ処理しない
+            if (sinFormedAngle >= Mathf.PI / 4)
+                continue;
 
+            cameraWay = (eWay)(i);
+
+            break;
+        }
 
 
         //float piDiv4 = Mathf.PI / 4;
@@ -536,8 +544,6 @@ public class StageEditorWindow : EditorWindow
 
         //}
 
-        
-
         //ここから下もう少しスッキリさせたい
         Vector3 createPos;
         createPos = hit.point;
@@ -550,43 +556,39 @@ public class StageEditorWindow : EditorWindow
             hitDir.z * m_targetPrefabMeshData.z
         );
 
-        ////めりこみ防止で当たっている方向の軸だけ補正する
-        //switch (way)
-        //{
-        //    case eWay.X:
-        //    {
-        //        if (ansVec.x > 0)
-        //            scaleOffset.x = m_targetPrefabMeshData.x;
-        //        else
-        //            scaleOffset.x = -m_targetPrefabMeshData.x;
-        //        break;
-        //    }
+        //めりこみ防止で当たっている方向の軸だけ補正する
+        switch (cameraWay)
+        {
+            case eWay.Xp:
+                scaleOffset.x = m_targetPrefabMeshData.x;
+                break;
+            case eWay.Xm:
+                scaleOffset.x = -m_targetPrefabMeshData.x;
+                break;
+                
 
-        //    case eWay.Y:
-        //    {
-        //        if (ansVec.y > 0)
-        //            scaleOffset.y = m_targetPrefabMeshData.y;
-        //        else
-        //            scaleOffset.y = -m_targetPrefabMeshData.y;
-        //        break;
-        //    }
+            case eWay.Yp:
+                scaleOffset.y = m_targetPrefabMeshData.y;
+                break;
+            case eWay.Ym:
+                scaleOffset.y = -m_targetPrefabMeshData.y;
+                break;
 
-        //    case eWay.Z:
-        //    {
-        //        if (ansVec.z > 0)
-        //            scaleOffset.z = m_targetPrefabMeshData.z;
-        //        else
-        //            scaleOffset.z = -m_targetPrefabMeshData.z;
-        //        break;
-        //    }
-        //}
+            case eWay.Zp:
+                scaleOffset.z = m_targetPrefabMeshData.z;
+                break;
+            case eWay.Zm:
+                scaleOffset.z = -m_targetPrefabMeshData.z;
+                break;
+            
+        }
 
 
         ////x軸にRayが当たった場合
         //if (comparitionHitDir.x >= comparitionHitDir.y
         //    && comparitionHitDir.x >= comparitionHitDir.z)
         //{
-            
+
         //}
         ////y軸にRayが当たった場合
         //else if (comparitionHitDir.y >= comparitionHitDir.x
@@ -598,7 +600,7 @@ public class StageEditorWindow : EditorWindow
         //else
         //{
         //    //+ or -
-            
+
         //}
 
         createPos += scaleOffset;
