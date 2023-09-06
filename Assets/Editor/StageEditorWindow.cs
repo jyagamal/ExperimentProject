@@ -11,6 +11,7 @@ using static UnityEditor.PlayerSettings;
 using System.IO;
 using GluonGui.WorkspaceWindow.Views.WorkspaceExplorer;
 using UnityEngine.Rendering;
+using UnityEngine.UIElements;
 
 //起動時&コンパイル時にコンストラクタを呼び出す
 [InitializeOnLoad]
@@ -39,6 +40,15 @@ public class StageEditorWindow : EditorWindow
 
     /*-----------------------------------クラス------------------------------------*/
     /*------------------------------------定数------------------------------------*/
+
+    private enum eWay
+    {
+        X = 0,
+        Y,
+        Z,
+        Null = 999,
+    }
+
     /*----------------------------SerializeField変数------------------------------*/
     /*------------------------------------変数------------------------------------*/
 
@@ -144,64 +154,12 @@ public class StageEditorWindow : EditorWindow
     {
         m_windowScrollbarPosition = EditorGUILayout.BeginScrollView(m_windowScrollbarPosition);
 
-
         //ScriptableObjectを読み込む
-        this.LoadPrefab();
+        m_prefabDataTable ??= AssetDatabase.LoadAssetAtPath<PrefabDataTable>
+            ("Assets/Editor/Data/PrefabDataTable.asset");
 
         if (GUILayout.Button("全てのプレハブを読み込む"))
-        {
-            //読み込むPrefabがあるパスを指定させる
-            var fullFilePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
-
-            //ディレクトリが存在しなければ処理しない
-            if (!Directory.Exists(fullFilePath))
-                return;
-
-            //このままだとフルパスになっているため、
-            //Assets/までパスを短縮する
-            string relativeFilePath = System.Text.RegularExpressions.
-                Regex.Match(fullFilePath, "Assets/.*").Value;
-
-           //データテーブルを消去する
-            m_prefabDataTable.Clear();
-
-            //プレハブを読み込む
-            List<GameObject> list = this.FindDirectoryGameObject(relativeFilePath);
-
-            if (list.Count() == 0)
-            {
-                Debug.LogWarning("プレハブがありません\n" + "検索パス[" + relativeFilePath + "]");
-                return;
-            }
-
-            Debug.Log("プレハブを検索:" + list.Count() + "つ格納\n" + "検索パス[" + relativeFilePath + "]");
-
-            foreach (GameObject prefab in list)
-            {
-                //プレハブのプレビュー写真を生成する
-                Texture2D prevIcon = AssetPreview.GetAssetPreview(prefab);
-                //色を反映する
-                prevIcon.Apply();
-
-                string prevIconPath = "/Editor/Data/PreviewIcon/" + prefab.name + ".png";
-
-                //PNG画像を生成する
-                //ここだけフルパスじゃないとダメっぽい
-                File.WriteAllBytes(Application.dataPath + prevIconPath, prevIcon.EncodeToPNG());
-
-                //プレビュー写真をアセットとしてプロジェクトに読み込む
-                //(.metaが生成されることでプロジェクトに反映される)
-                AssetDatabase.ImportAsset("Assets" + prevIconPath);
-
-                //アセットとしてのプレビュー写真を読み込む
-                var prevIconAssets = AssetDatabase.LoadAssetAtPath
-                    ("Assets" +prevIconPath, typeof(Texture2D));
-
-                //データテーブルに追加する
-                m_prefabDataTable.AddPrefab(prefab, prevIconAssets as Texture2D);
-
-            }
-        }
+            this.LoadPrefabs();
 
         //Prefabの親オブジェクトを設定する
         m_parentObj = (GameObject)EditorGUILayout.ObjectField
@@ -273,7 +231,15 @@ public class StageEditorWindow : EditorWindow
                 m_targetPrefab.TryGetComponent<MeshFilter>(out demoMesh);
 
                 //メッシュの情報を取得する
-                m_targetPrefabMeshData = m_targetPrefab.GetComponent<MeshRenderer>().bounds.extents;
+                Vector3 targetPrefabMeshData = m_targetPrefab.GetComponent<MeshRenderer>()
+                    .bounds.extents;
+
+                m_targetPrefabMeshData = new Vector3
+                (
+                    targetPrefabMeshData.x * m_targetPrefab.transform.lossyScale.x,
+                    targetPrefabMeshData.y * m_targetPrefab.transform.lossyScale.y,
+                    targetPrefabMeshData.z * m_targetPrefab.transform.lossyScale.z
+                ); 
 
                 DrawMeshGizmo.m_drawMesh = demoMesh.sharedMesh;
 
@@ -332,7 +298,6 @@ public class StageEditorWindow : EditorWindow
             else if (m_randRad < min && m_randRadArrEle > 0)
                 m_randRadArrEle -= 1;
 
-
             //ギズモの半径とインスペクターで設定した値を同期させる
             m_RandRadGizmoObj.transform.localScale = new Vector3
             (
@@ -346,13 +311,75 @@ public class StageEditorWindow : EditorWindow
 
     }
 
-    private void LoadPrefab()
+    /*---------------------------------------------------------------------------------
+    *	
+    *	内容　 : プレハブを読み込む
+    *	引数　 : なし
+    *	戻り値 : なし
+    *	 
+    -----------------------------------------------------------------------------------*/
+    private void LoadPrefabs()
     {
-        //ScriptableObjectを読み込む
-        m_prefabDataTable ??= AssetDatabase.LoadAssetAtPath<PrefabDataTable>
-            ("Assets/Editor/Data/PrefabDataTable.asset");
+        //読み込むPrefabがあるパスを指定させる
+        var fullFilePath = EditorUtility.SaveFolderPanel("LoadPrefabFolder", "Assets", "");
+
+        //ディレクトリが存在しなければ処理しない
+        if (!Directory.Exists(fullFilePath))
+            return;
+
+        //このままだとフルパスになっているため、
+        //Assets/までパスを短縮する
+        string relativeFilePath = System.Text.RegularExpressions.
+            Regex.Match(fullFilePath, "Assets/.*").Value;
+
+        //データテーブルを消去する
+        m_prefabDataTable.Clear();
+
+        //プレハブを読み込む
+        List<GameObject> list = this.FindDirectoryGameObject(relativeFilePath);
+
+        if (list.Count() == 0)
+        {
+            Debug.LogWarning("プレハブがありません\n" + "検索パス[" + relativeFilePath + "]");
+            return;
+        }
+
+        Debug.Log("プレハブを検索:" + list.Count() + "つ格納\n" + "検索パス[" + relativeFilePath + "]");
+
+        foreach (GameObject prefab in list)
+        {
+            //プレハブのプレビュー写真を生成する
+            Texture2D prevIcon = AssetPreview.GetAssetPreview(prefab);
+            //色を反映する
+            prevIcon.Apply();
+
+            string prevIconPath = "/Editor/Data/PreviewIcon/" + prefab.name + ".png";
+
+            //PNG画像を生成する
+            //ここだけフルパスじゃないとダメっぽい
+            File.WriteAllBytes(Application.dataPath + prevIconPath, prevIcon.EncodeToPNG());
+
+            //プレビュー写真をアセットとしてプロジェクトに読み込む
+            //(.metaが生成されることでプロジェクトに反映される)
+            AssetDatabase.ImportAsset("Assets" + prevIconPath);
+
+            //アセットとしてのプレビュー写真を読み込む
+            var prevIconAssets = AssetDatabase.LoadAssetAtPath
+                ("Assets" + prevIconPath, typeof(Texture2D));
+
+            //データテーブルに追加する
+            m_prefabDataTable.AddPrefab(prefab, prevIconAssets as Texture2D);
+
+        }
     }
 
+    /*---------------------------------------------------------------------------------
+    *	
+    *	内容　 : プレハブを生成する
+    *	引数　 : シーンビュー
+    *	戻り値 : なし
+    *	 
+    -----------------------------------------------------------------------------------*/
     private static void CreatePrefab(SceneView sceneView)
     {
         RaycastHit hit;
@@ -381,12 +408,18 @@ public class StageEditorWindow : EditorWindow
 
             if (m_rayHitObj != hitObj)
             {
-                ;
                 MeshRenderer renderer;
                 hitObj.TryGetComponent<MeshRenderer>(out renderer);
 
                 m_rayHitObj = hitObj;
-                m_rayHitObjMeshData = renderer.bounds.extents;
+
+                Vector3 renderExtents = renderer.bounds.extents;
+                m_rayHitObjMeshData = new Vector3
+                (
+                    renderExtents.x * m_rayHitObj.transform.lossyScale.x,
+                    renderExtents.y * m_rayHitObj.transform.lossyScale.y,
+                    renderExtents.z * m_rayHitObj.transform.lossyScale.z
+                );
             }
 
             //ギズモの座標をPrefabの生成地点にする
@@ -450,75 +483,126 @@ public class StageEditorWindow : EditorWindow
         if (hitObj == null)
             return Vector3.zero;
 
-        Vector3 hitDir = hit.point - hitObj.transform.position;
-        
-        Vector3 hitDirNor = hitDir.normalized;
+        Vector3 hitDir = (hit.point - hitObj.transform.position).normalized;
 
-        //比較用に符号をなくす
-        Vector3 comparitionHitDir = new Vector3
-        (
-            Mathf.Abs(hitDirNor.x),
-            Mathf.Abs(hitDirNor.y),
-            Mathf.Abs(hitDirNor.z)
-        );
+        ////Rayが当たったオブジェクトから、カメラの方向を算出する
+        //Vector3 cameraDir = (SceneView.currentDrawingSceneView.camera.transform.position - 
+        //    hitObj.transform.position).normalized;
+
+        ////内積で角度を算出する
+        //float cosFormedAngle = Vector3.Dot(cameraDir, hitDir);
+
+        //if (cosFormedAngle < 0.0f)
+        //    return Vector3.zero;
+
+        ////cosをsinに変換
+        //float sinFormedAngle = Mathf.Acos(cosFormedAngle);
+
+        //if (sinFormedAngle >= Mathf.PI / 2)
+        //    return Vector3.zero;
+
+
+
+        //float piDiv4 = Mathf.PI / 4;
+        //Vector3[] ways = { Vector3.right, Vector3.left,
+        //     Vector3.up, Vector3.down, Vector3.forward, Vector3.back,};
+
+        //Vector3 ansVec = Vector3.zero;
+        //eWay way = eWay.Null;
+
+        ////Rayの当たった方向との角度を出し、±45°以内の方向を
+        ////生成する方向とする
+        //for (int i = 0; i < ways.Length; i++)
+        //{
+        //    //なす角を算出する
+        //    float cosFormedAngle = Vector3.Dot(hitDir, ways[i]);
+
+        //    //対象の方向じゃなければ処理しない 
+        //    if (cosFormedAngle < 0.0f)
+        //        continue;
+
+        //    float sinFormedAngle = Mathf.Acos(cosFormedAngle);
+
+        //    if (sinFormedAngle <= piDiv4)
+        //    {
+        //        ansVec = ways[i];
+
+        //        //Debug.Log(sinFormedAngle);
+
+        //        way = (eWay)(i / 2);
+        //        Debug.Log(way);
+        //        break;
+        //    }
+
+        //}
+
+        
 
         //ここから下もう少しスッキリさせたい
         Vector3 createPos;
-
-        if (m_isUseRayHitObj)
-        {
-            createPos = hitObj.transform.position;
-
-            //x軸にRayが当たった場合
-            if (comparitionHitDir.x >= comparitionHitDir.y
-                && comparitionHitDir.x >= comparitionHitDir.z)
-            {
-                //+ or -
-                if (hitDir.x > 0)
-                    createPos.x += m_rayHitObjMeshData.x +
-                        m_targetPrefabMeshData.x;
-                else
-                    createPos.x -= m_rayHitObjMeshData.x +
-                        m_targetPrefabMeshData.x;
-            }
-            //y軸にRayが当たった場合
-            else if (comparitionHitDir.y >= comparitionHitDir.x
-                     && comparitionHitDir.y >= comparitionHitDir.z)
-            {
-                //+ or -
-                if (hitDir.y > 0)
-                    createPos.y += m_rayHitObjMeshData.y +
-                        m_targetPrefabMeshData.y;
-                else
-                    createPos.y -= m_rayHitObjMeshData.y +
-                        m_targetPrefabMeshData.y;
-            }
-            //z軸にRayが当たった場合
-            else
-            {
-                //+ or -
-                if (hitDir.z > 0)
-                    createPos.z += m_rayHitObjMeshData.z +
-                        m_targetPrefabMeshData.z;
-                else
-                    createPos.z -= m_rayHitObjMeshData.z +
-                        m_targetPrefabMeshData.z;
-            }
-        }
-        else
-        {
-            createPos = hit.point;
-
-            Vector3 scaleOffset = new Vector3
-            (
-                hitDirNor.x * m_targetPrefabMeshData.x,
-                hitDirNor.y * m_targetPrefabMeshData.y,
-                hitDirNor.z * m_targetPrefabMeshData.z
-            );
-
-            createPos += scaleOffset;
-        }
+        createPos = hit.point;
         
+        //当たった方向にメッシュの大きさをかけて座標を補正する
+        Vector3 scaleOffset = new Vector3
+        (
+            hitDir.x * m_targetPrefabMeshData.x,
+            hitDir.y * m_targetPrefabMeshData.y,
+            hitDir.z * m_targetPrefabMeshData.z
+        );
+
+        ////めりこみ防止で当たっている方向の軸だけ補正する
+        //switch (way)
+        //{
+        //    case eWay.X:
+        //    {
+        //        if (ansVec.x > 0)
+        //            scaleOffset.x = m_targetPrefabMeshData.x;
+        //        else
+        //            scaleOffset.x = -m_targetPrefabMeshData.x;
+        //        break;
+        //    }
+
+        //    case eWay.Y:
+        //    {
+        //        if (ansVec.y > 0)
+        //            scaleOffset.y = m_targetPrefabMeshData.y;
+        //        else
+        //            scaleOffset.y = -m_targetPrefabMeshData.y;
+        //        break;
+        //    }
+
+        //    case eWay.Z:
+        //    {
+        //        if (ansVec.z > 0)
+        //            scaleOffset.z = m_targetPrefabMeshData.z;
+        //        else
+        //            scaleOffset.z = -m_targetPrefabMeshData.z;
+        //        break;
+        //    }
+        //}
+
+
+        ////x軸にRayが当たった場合
+        //if (comparitionHitDir.x >= comparitionHitDir.y
+        //    && comparitionHitDir.x >= comparitionHitDir.z)
+        //{
+            
+        //}
+        ////y軸にRayが当たった場合
+        //else if (comparitionHitDir.y >= comparitionHitDir.x
+        //         && comparitionHitDir.y >= comparitionHitDir.z)
+        //{
+
+        //}
+        ////z軸にRayが当たった場合
+        //else
+        //{
+        //    //+ or -
+            
+        //}
+
+        createPos += scaleOffset;
+
         return createPos;
     }
 
@@ -531,6 +615,9 @@ public class StageEditorWindow : EditorWindow
     -----------------------------------------------------------------------------------*/
     private bool SearchPrefab(GameObject prefab)
     {
+        if (m_searchName == "" || prefab == null)
+            return true;
+
         string prefabName = prefab.name;
 
         //プレハブの名前より長いなら検索しない
