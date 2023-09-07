@@ -34,13 +34,13 @@ public class StageEditorWindow : EditorWindow
 
     private enum eWay
     {
-        Xp = 0,
-        Xm,
-        Yp,
-        Ym,
-        Zp,
-        Zm,
-        Null = 999,
+        Xp = 0,     //X軸プラス方向
+        Xm,         //X軸マイナス方向
+        Yp,         //Y軸プラス方向
+        Ym,         //Y軸マイナス方向
+        Zp,         //Z軸プラス方向
+        Zm,         //Z軸マイナス方向
+        Null = 999, //
     }
 
     /*----------------------------SerializeField変数------------------------------*/
@@ -505,44 +505,11 @@ public class StageEditorWindow : EditorWindow
             if (sinFormedAngle >= Mathf.PI / 4)
                 continue;
 
+            //対象の軸にする
             cameraWay = (eWay)(i);
 
             break;
         }
-
-
-        //float piDiv4 = Mathf.PI / 4;
-        //Vector3[] ways = { Vector3.right, Vector3.left,
-        //     Vector3.up, Vector3.down, Vector3.forward, Vector3.back,};
-
-        //Vector3 ansVec = Vector3.zero;
-        //eWay way = eWay.Null;
-
-        ////Rayの当たった方向との角度を出し、±45°以内の方向を
-        ////生成する方向とする
-        //for (int i = 0; i < ways.Length; i++)
-        //{
-        //    //なす角を算出する
-        //    float cosFormedAngle = Vector3.Dot(hitDir, ways[i]);
-
-        //    //対象の方向じゃなければ処理しない 
-        //    if (cosFormedAngle < 0.0f)
-        //        continue;
-
-        //    float sinFormedAngle = Mathf.Acos(cosFormedAngle);
-
-        //    if (sinFormedAngle <= piDiv4)
-        //    {
-        //        ansVec = ways[i];
-
-        //        //Debug.Log(sinFormedAngle);
-
-        //        way = (eWay)(i / 2);
-        //        Debug.Log(way);
-        //        break;
-        //    }
-
-        //}
 
         //ここから下もう少しスッキリさせたい
         Vector3 createPos;
@@ -582,26 +549,6 @@ public class StageEditorWindow : EditorWindow
                 break;
             
         }
-
-
-        ////x軸にRayが当たった場合
-        //if (comparitionHitDir.x >= comparitionHitDir.y
-        //    && comparitionHitDir.x >= comparitionHitDir.z)
-        //{
-
-        //}
-        ////y軸にRayが当たった場合
-        //else if (comparitionHitDir.y >= comparitionHitDir.x
-        //         && comparitionHitDir.y >= comparitionHitDir.z)
-        //{
-
-        //}
-        ////z軸にRayが当たった場合
-        //else
-        //{
-        //    //+ or -
-
-        //}
 
         createPos += scaleOffset;
 
